@@ -270,6 +270,13 @@ class MainWindow(QMainWindow):
 
         self.colorbyMenu.aboutToShow.connect(self.updateColorbyMenu)
 
+        self.zoomAction = QAction('&Zoom...', self)
+        self.zoomAction.setShortcut('Alt+Shift+Z')
+        self.zoomAction.setToolTip('Edit zoom factor')
+        self.zoomAction.setStatusTip('Edit zoom factor')
+        self.zoomAction.triggered.connect(self.editZoomAct)
+        self.editMenu.addAction(self.zoomAction)
+
         self.editMenu.addSeparator()
 
         self.maskingAction = QAction('Enable &Masking', self)
@@ -302,49 +309,32 @@ class MainWindow(QMainWindow):
         self.editMenu.addAction(self.overlapAct)
 
         # View Menu
-        self.dockAction = QAction('Hide &Dock', self)
-        self.dockAction.setShortcut("Ctrl+D")
-        self.dockAction.setToolTip('Toggle dock visibility')
-        self.dockAction.setStatusTip('Toggle dock visibility')
-        self.dockAction.triggered.connect(self.toggleDockView)
-
-        self.zoomAction = QAction('&Zoom...', self)
-        self.zoomAction.setShortcut('Alt+Shift+Z')
-        self.zoomAction.setToolTip('Edit zoom factor')
-        self.zoomAction.setStatusTip('Edit zoom factor')
-        self.zoomAction.triggered.connect(self.editZoomAct)
-
-        self.viewMenu = self.mainMenu.addMenu('&View')
-        self.viewMenu.addAction(self.dockAction)
-        self.viewMenu.addSeparator()
-        self.viewMenu.addAction(self.zoomAction)
-        self.viewMenu.aboutToShow.connect(self.updateViewMenu)
-
-        # Window Menu
-        self.mainWindowAction = QAction('&Main Window', self)
-        self.mainWindowAction.setCheckable(True)
-        self.mainWindowAction.setToolTip('Bring main window to front')
-        self.mainWindowAction.setStatusTip('Bring main window to front')
-        self.mainWindowAction.triggered.connect(self.showMainWindow)
-
         self.colorDialogAction = QAction('Color &Options', self)
         self.colorDialogAction.setCheckable(True)
         self.colorDialogAction.setToolTip('Bring Color Dialog to front')
         self.colorDialogAction.setStatusTip('Bring Color Dialog to front')
         self.colorDialogAction.triggered.connect(self.showColorDialog)
 
+        self.dockAction = QAction('&Dock', self)
+        self.dockAction.setCheckable(True)
+        self.dockAction.setShortcut("Ctrl+D")
+        self.dockAction.setToolTip('Toggle dock visibility')
+        self.dockAction.setStatusTip('Toggle dock visibility')
+        self.dockAction.triggered.connect(self.toggleDockView)
+
         # Keyboard Shortcuts Overlay
         self.keyboardShortcutsAction = QAction("&Keyboard Shortcuts...", self)
         self.keyboardShortcutsAction.setShortcut("?")
         self.keyboardShortcutsAction.setToolTip("Display Keyboard Shortcuts")
         self.keyboardShortcutsAction.setStatusTip("Display Keyboard Shortcuts")
-        self.keyboardShortcutsAction.triggered.connect(self.toggleShortcuts)
+        self.keyboardShortcutsAction.triggered[bool].connect(self.toggleShortcuts)
 
-        self.windowMenu = self.mainMenu.addMenu('&Window')
-        self.windowMenu.addAction(self.mainWindowAction)
-        self.windowMenu.addAction(self.colorDialogAction)
-        self.windowMenu.addAction(self.keyboardShortcutsAction)
-        self.windowMenu.aboutToShow.connect(self.updateWindowMenu)
+        self.viewMenu = self.mainMenu.addMenu('&View')
+        self.viewMenu.addAction(self.colorDialogAction)
+        self.viewMenu.addAction(self.dockAction)
+        self.viewMenu.addSeparator()
+        self.viewMenu.addAction(self.keyboardShortcutsAction)
+        self.viewMenu.aboutToShow.connect(self.updateViewMenu)
 
     def updateEditMenu(self):
         changed = self.model.currentView != self.model.defaultView
@@ -371,14 +361,8 @@ class MainWindow(QMainWindow):
         self.densityAction.setChecked(cv.colorby == 'density')
 
     def updateViewMenu(self):
-        if self.dock.isVisible():
-            self.dockAction.setText('Hide &Dock')
-        else:
-            self.dockAction.setText('Show &Dock')
-
-    def updateWindowMenu(self):
-        self.colorDialogAction.setChecked(self.colorDialog.isActiveWindow())
-        self.mainWindowAction.setChecked(self.isActiveWindow())
+        self.colorDialogAction.setChecked(self.colorDialog.isVisible())
+        self.dockAction.setChecked(self.dock.isVisible())
 
     # Menu and shared methods
 
@@ -621,10 +605,13 @@ class MainWindow(QMainWindow):
         self.raise_()
         self.activateWindow()
 
-    def showColorDialog(self):
-        self.colorDialog.show()
-        self.colorDialog.raise_()
-        self.colorDialog.activateWindow()
+    def showColorDialog(self, checked=False):
+        if self.colorDialog.isVisible():
+            self.colorDialog.hide()
+        else:
+            self.colorDialog.show()
+            self.colorDialog.raise_()
+            self.colorDialog.activateWindow()
 
     # Dock methods:
 
@@ -793,6 +780,7 @@ class MainWindow(QMainWindow):
         is_visible = settings.value("colorDialog/Visible")
         is_visible = bool(is_visible)
         self.colorDialog.setVisible(is_visible)
+
 
     def restoreModelSettings(self):
         if os.path.isfile("plot_settings.pkl"):
