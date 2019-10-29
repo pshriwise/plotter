@@ -10,6 +10,7 @@ import sys
 from threading import Thread
 import time
 
+import numpy as np
 import openmc
 import openmc.lib
 from PySide2 import QtCore, QtGui
@@ -1051,6 +1052,9 @@ class MainWindow(QMainWindow):
             self.model.previousViews = self.model.previousViews[-10:]
         if len(self.model.subsequentViews) > 10:
             self.model.subsequentViews = self.model.subsequentViews[-10:]
+
+        if not isinstance(self.model.tally_data, np.ndarray):
+            self.model.tally_data = None
 
         with open('plot_settings.pkl', 'wb') as file:
             if self.model.statepoint:

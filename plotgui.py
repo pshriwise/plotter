@@ -15,6 +15,7 @@ from PySide2.QtWidgets import (QWidget, QPushButton, QHBoxLayout, QVBoxLayout,
                                QTableView, QItemDelegate, QHeaderView, QSlider,
                                QTextEdit, QListWidget, QListWidgetItem)
 import matplotlib.pyplot as plt
+import yt
 from matplotlib.backends.qt_compat import is_pyqt5
 from matplotlib.figure import Figure
 from matplotlib import image as mpimage
@@ -505,30 +506,32 @@ class PlotImage(FigureCanvas):
 
             self.model.tally_data = image_data
 
-            norm = SymLogNorm(1E-2) if cv.tallyDataLogScale else None
-            self.tally_image = self.ax.imshow(image_data,
-                                              alpha = cv.tallyDataAlpha,
-                                              cmap = cv.tallyDataColormap,
-                                              norm = norm,
-                                              extent=data_bounds)
-            # add colorbar
-            self.tally_colorbar = self.figure.colorbar(self.tally_image,
-                                                       anchor=(1.0, 0.0))
+            if isinstance(image_data, np.ndarray):
 
-            if not cv.tallyDataUserMinMax:
-                cv.tallyDataMin = data_min
-                cv.tallyDataMax = data_max
-            else:
-                data_min = cv.tallyDataMin
-                data_max = cv.tallyDataMax
+                norm = SymLogNorm(1E-2) if cv.tallyDataLogScale else None
+                self.tally_image = self.ax.imshow(image_data,
+                                                alpha = cv.tallyDataAlpha,
+                                                cmap = cv.tallyDataColormap,
+                                                norm = norm,
+                                                extent=data_bounds)
+                # add colorbar
+                self.tally_colorbar = self.figure.colorbar(self.tally_image,
+                                                        anchor=(1.0, 0.0))
 
-            self.mw.updateTallyMinMax()
+                if not cv.tallyDataUserMinMax:
+                    cv.tallyDataMin = data_min
+                    cv.tallyDataMax = data_max
+                else:
+                    data_min = cv.tallyDataMin
+                    data_max = cv.tallyDataMax
 
-            self.tally_colorbar.mappable.set_clim(data_min, data_max)
-            self.tally_colorbar.set_label('Units',
-                                          rotation=-90,
-                                          va='bottom',
-                                          ha='right')
+                self.mw.updateTallyMinMax()
+
+                self.tally_colorbar.mappable.set_clim(data_min, data_max)
+                self.tally_colorbar.set_label('Units',
+                                            rotation=-90,
+                                            va='bottom',
+                                            ha='right')
 
         self.draw()
 
@@ -540,7 +543,9 @@ class PlotImage(FigureCanvas):
                                      openmc.filter.MaterialFilter,
                                      openmc.filter.MeshFilter)
 
-        tally = self.model.statepoint.tallies[tally_id]
+        cv = self.model.currentView
+        sp = self.model.statepoint
+        tally = sp.tallies[tally_id]
 
         # find a spatial filter
         for filter in tally.filters:
@@ -596,7 +601,29 @@ class PlotImage(FigureCanvas):
                     image_data[self.model.cell_ids == cell] = tally_val
 
         elif filter_type == openmc.filter.MeshFilter:
-            pass
+            mesh_id = filter.mesh.id
+            mesh = sp.meshes[mesh_id]
+            if isinstance(mesh, openmc.RegularMesh):
+                bbox = np.empty((6,))
+                bbox[0::2] = mesh.lower_left
+                bbox[1::2] = mesh.upper_right
+                bbox = bbox.reshape(3,2)
+
+                # get data for the tally
+                tally_data = tally.get_slice(scores=scores, nuclides=nuclides)
+                tally_data = tally_data.mean
+                tally_data.shape = mesh.dimension
+
+                data = dict(flux = (tally_data, 'cm'))
+
+                dmin, dmax = np.min(tally_data), np.max(tally_data)
+                print(tally_data.shape)
+                grid = yt.load_uniform_grid(data, tally_data.shape, length_unit='cm',
+                bbox=bbox, nprocs = 4, geometry=('cartesian', ('z', 'y', 'x')), periodicity=(False, False, False))
+
+                s = yt.SlicePlot(grid, 'z', 'flux', width=((cv.width, 'cm'), (cv.height, 'cm')), origin='native', center=list(cv.origin))
+
+                return s, dmin, dmax
 
         # mask invalid values from the array
         image_data = np.ma.masked_where(image_data < 0.0, image_data)

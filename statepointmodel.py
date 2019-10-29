@@ -27,6 +27,13 @@ class StatePointModel():
             return {}
 
     @property
+    def meshes(self):
+        if self.is_open:
+            return self._sp.meshes
+        else:
+            return {}
+
+    @property
     def universes(self):
         if self.is_open and self._sp.summary is not None:
             return self._sp.summary.geometry.get_all_universes()
