@@ -1,0 +1,15 @@
+------------------------------------
+:mod:`openmc-plotter` -- Basic Functionality
+------------------------------------
+
+
+Plotter Model
+-------------
+
+.. autosummary::
+   :toctree: generated
+   :nosignatures:
+   :template: myclass.rst
+
+
+   plotmodel
