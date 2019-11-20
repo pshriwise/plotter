@@ -490,6 +490,64 @@ class MainWindow(QMainWindow):
                 message = 'Error loading plot settings. Incompatible model.'
             self.statusBar().showMessage(message, 5000)
 
+    @staticmethod
+    def validateStatePoint(statepoint):
+        """
+        Used to ensure that the statepoint file being loaded matches the model
+        in the OpenMC instance.
+        """
+
+        def _warn(reason):
+            prefix = "Statepoint validation failed:\n\n"
+            suffix = "\n\nThe displayed tally results may not correspond to " \
+                     "the current geometric model."
+            msg_box = QMessageBox()
+            msg_box.setText("{}\n-{}\n{}".format(prefix, reason, suffix))
+            msg_box.setIcon(QMessageBox.Information)
+            msg_box.setStandardButtons(QMessageBox.Ok)
+            msg_box.exec_()
+
+        if not hasattr(statepoint, 'summary'):
+            _warn("No summary was linked with the statepoint file.")
+
+        # Geometry Checks
+        geom = statepoint.summary.geometry
+
+        # check number of cells and cell ids
+        sp_cell_ids = set(geom.get_all_cells().keys())
+        inst_cell_ids = set(openmc.lib.cells.keys())
+
+        if sp_cell_ids != inst_cell_ids:
+            _warn("Cell IDs do not match.")
+            return
+
+        sp_mat_ids = set(geom.get_all_materials().keys())
+        inst_mat_ids = set(openmc.lib.materials.keys())
+
+        if sp_mat_ids != inst_mat_ids:
+            _warn("Cell IDs do not match.")
+            return
+
+        # Tally Check
+        tallies = statepoint.tallies
+
+        sp_tally_ids = set(tallies.keys())
+        inst_tally_ids = set(openmc.lib.tallies.keys())
+
+        if sp_tally_ids != inst_tally_ids:
+            _warn("Tally IDs do not match.")
+            return
+
+        for tid in inst_tally_ids:
+            sp_tally = tallies[tid]
+            sp_filter_ids = set(f.id for f in sp_tally.filters)
+            inst_tally = openmc.lib.tallies[tid]
+            inst_filter_ids = set(f.id for f in inst_tally.filters)
+            inst_filter_ids.add(100)
+            if sp_filter_ids != inst_filter_ids:
+                _warn("Filters IDs do not match for tally {}".format(tid))
+                return
+
     def openStatePoint(self):
         # check for an alread-open statepoint
         if self.model.statepoint:
@@ -503,12 +561,11 @@ class MainWindow(QMainWindow):
         filename, ext = QFileDialog.getOpenFileName(self, "Open StatePoint",
                                                     ".", "statepoint*.h5")
         if filename:
+            message = 'Error opening statepoint file: {}'
             try:
                 self.model.openStatePoint(filename)
+                self.validateStatePoint(self.model.statepoint._sp)
                 message = 'Opened statepoint file: {}'
-            except:
-
-                message = 'Error opening statepoint file: {}'
             finally:
                 self.statusBar().showMessage(message.format(filename), 5000)
             self.updateDataMenu()
