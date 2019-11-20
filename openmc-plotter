@@ -497,12 +497,15 @@ class MainWindow(QMainWindow):
         in the OpenMC instance.
         """
 
+        # get the real statepoint object
+        statepoint = statepoint._sp
+
         def _warn(reason):
             prefix = "Statepoint validation failed:\n\n"
             suffix = "\n\nThe displayed tally results may not correspond to " \
                      "the current geometric model."
             msg_box = QMessageBox()
-            msg_box.setText("{}\n-{}\n{}".format(prefix, reason, suffix))
+            msg_box.setText("{}\n- {}\n{}".format(prefix, reason, suffix))
             msg_box.setIcon(QMessageBox.Information)
             msg_box.setStandardButtons(QMessageBox.Ok)
             msg_box.exec_()
@@ -510,7 +513,7 @@ class MainWindow(QMainWindow):
         if not hasattr(statepoint, 'summary'):
             _warn("No summary was linked with the statepoint file.")
 
-        # Geometry Checks
+        # Model Domain Checks
         geom = statepoint.summary.geometry
 
         # check number of cells and cell ids
@@ -543,7 +546,6 @@ class MainWindow(QMainWindow):
             sp_filter_ids = set(f.id for f in sp_tally.filters)
             inst_tally = openmc.lib.tallies[tid]
             inst_filter_ids = set(f.id for f in inst_tally.filters)
-            inst_filter_ids.add(100)
             if sp_filter_ids != inst_filter_ids:
                 _warn("Filters IDs do not match for tally {}".format(tid))
                 return
@@ -564,7 +566,7 @@ class MainWindow(QMainWindow):
             message = 'Error opening statepoint file: {}'
             try:
                 self.model.openStatePoint(filename)
-                self.validateStatePoint(self.model.statepoint._sp)
+                self.validateStatePoint(self.model.statepoint)
                 message = 'Opened statepoint file: {}'
             finally:
                 self.statusBar().showMessage(message.format(filename), 5000)
@@ -587,6 +589,7 @@ class MainWindow(QMainWindow):
 
     def updateDataMenu(self):
         if self.model.statepoint:
+
             self.closeStatePointAction = QAction("&Close statepoint", self)
             self.closeStatePointAction.setToolTip("Close current statepoint")
             self.closeStatePointAction.triggered.connect(self.closeStatePoint)
@@ -1070,7 +1073,12 @@ class MainWindow(QMainWindow):
 
             try:
                 self.model.statepoint = model.statepoint
-            except OSError:
+                if self.model.statepoint:
+                    msg = "Validating statepoint file:\n{}"
+                    print(msg.format(model.statepoint.filename))
+                    self.validateStatePoint(model.statepoint)
+                    print("Done")
+            except (OSError, FileNotFoundError):
                 msg_box = QMessageBox()
                 msg = "Could open statepoint file: \n\n {} \n"
                 msg_box.setText(msg.format(self.model.statepoint.filename))
