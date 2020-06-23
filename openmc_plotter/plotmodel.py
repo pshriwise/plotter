@@ -193,37 +193,61 @@ class PlotModel():
         """
 
         cv = self.currentView = copy.deepcopy(self.activeView)
-        ids = openmc.lib.id_map(cv)
-        props = openmc.lib.property_map(cv)
 
-        self.cell_ids = ids[:, :, 0]
-        self.mat_ids = ids[:, :, 1]
+        image = np.zeros((cv.v_res, cv.h_res, 3), dtype=float)
 
-        # set model ids based on domain
-        if cv.colorby == 'cell':
-            self.ids = self.cell_ids
-            domain = cv.cells
-            source = self.modelCells
-        else:
-            self.ids = self.mat_ids
-            domain = cv.materials
-            source = self.modelMaterials
+        for i in range(cv.n_samples):
 
-        # generate colors if not present
-        for cell_id, cell in cv.cells.items():
-            if cell.color is None:
-                cell.color = random_rgb()
+            # nudge the origin of the current view a bit
+            v = copy.deepcopy(cv)
+            if i > 0:
+                voxel_width = 0.5 * v.width / v.h_res
+                voxel_height = 0.5 * v.height / v.v_res
+                dx = np.random.uniform(-voxel_width, voxel_width)
+                dy = np.random.uniform(-voxel_height, voxel_height)
+                v.origin[0] += dx
+                v.origin[1] += dy
 
-        for mat_id, mat in cv.materials.items():
-            if mat.color is None:
-                mat.color = random_rgb()
+            ids = openmc.lib.id_map(v)
+            props = openmc.lib.property_map(v)
 
-        # construct image data
-        domain[_OVERLAP] = DomainView(_OVERLAP, "Overlap", cv.overlap_color)
-        domain[_NOT_FOUND] = DomainView(_NOT_FOUND, "Not Found", cv.domainBackground)
-        u, inv = np.unique(self.ids, return_inverse=True)
-        image = np.array([domain[id].color for id in u])[inv]
-        image.shape = (cv.v_res, cv.h_res, 3)
+            self.cell_ids = ids[:, :, 0]
+            self.mat_ids = ids[:, :, 1]
+
+            # set model ids based on domain
+            if cv.colorby == 'cell':
+                self.ids = self.cell_ids
+                domain = cv.cells
+                source = self.modelCells
+            else:
+                self.ids = self.mat_ids
+                domain = cv.materials
+                source = self.modelMaterials
+
+                # generate colors if not present
+                for cell_id, cell in cv.cells.items():
+                    if cell.color is None:
+                        cell.color = random_rgb()
+
+                for mat_id, mat in cv.materials.items():
+                    if mat.color is None:
+                        mat.color = random_rgb()
+
+            # construct image data
+            domain[_OVERLAP] = DomainView(_OVERLAP, "Overlap", cv.overlap_color)
+            domain[_NOT_FOUND] = DomainView(_NOT_FOUND, "Not Found", cv.domainBackground)
+            u, inv = np.unique(self.ids, return_inverse=True)
+            image_tmp = np.array([domain[id].color for id in u], dtype=float)[inv]
+            image_tmp /= 256.0
+            image_tmp.shape = (cv.v_res, cv.h_res, 3)
+
+            image += image_tmp
+
+        print(image)
+        rcp_gamma = 1.0 / 2.0
+        image /= cv.n_samples
+        image = np.power(image, rcp_gamma)
+        print(image)
 
         if cv.masking:
             for id, dom in domain.items():
@@ -592,6 +616,8 @@ class PlotView(openmc.lib.plot._PlotBase):
     aspectLock : bool
         Indication of whether aspect lock should be maintained to
         prevent image stretching/warping
+    n_samples : int
+        Number of anti-alias samples to use to smooth the image (defualt 1)
     basis : {'xy', 'xz', 'yz'}
         The basis directions for the plot
     colorby : {'cell', 'material', 'temperature', 'density'}
@@ -667,6 +693,7 @@ class PlotView(openmc.lib.plot._PlotBase):
         self.v_res = 1000
         self.aspectLock = True
         self.basis = 'xy'
+        self.n_samples = 1
 
         # Geometry Plot
         self.colorby = 'material'

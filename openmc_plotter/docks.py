@@ -210,11 +210,18 @@ class DomainDock(PlotterDock):
         self.ratioCheck = QCheckBox("Fixed Aspect Ratio", self)
         self.ratioCheck.stateChanged.connect(self.main_window.toggleAspectLock)
 
+        # Anti-aliasing Box
+        self.antiAliasBox = QSpinBox(self)
+        self.antiAliasBox.setRange(1, 99999)
+        self.antiAliasBox.setSuffix(' samples')
+        self.antiAliasBox.valueChanged.connect(self.main_window.editAntiAlias)
+
         # Resolution Form Layout
         self.resLayout = QFormLayout()
         self.resLayout.addRow(self.ratioCheck)
         self.resLayout.addRow('Pixel Width:', self.hResBox)
         self.resLayout.addRow(self.vResLabel, self.vResBox)
+        self.resLayout.addRow('Anti Aliasing', self.antiAliasBox)
         self.resLayout.setLabelAlignment(QtCore.Qt.AlignLeft)
         self.resLayout.setFieldGrowthPolicy(QFormLayout.AllNonFixedFieldsGrow)
 
@@ -234,6 +241,7 @@ class DomainDock(PlotterDock):
         self.updateAspectLock()
         self.updateHRes()
         self.updateVRes()
+        self.updateAntiAlias()
 
     def updateOrigin(self):
         self.xOrBox.setValue(self.model.activeView.origin[0])
@@ -272,6 +280,9 @@ class DomainDock(PlotterDock):
 
     def updateVRes(self):
         self.vResBox.setValue(self.model.activeView.v_res)
+
+    def updateAntiAlias(self):
+        self.antiAliasBox.setValue(self.model.activeView.n_samples)
 
     def revertToCurrent(self):
         cv = self.model.currentView

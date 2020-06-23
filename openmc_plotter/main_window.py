@@ -782,6 +782,10 @@ class MainWindow(QMainWindow):
         self.onRatioChange()
         self.dock.updateAspectLock()
 
+    def editAntiAlias(self, value):
+        self.model.activeView.n_samples = value
+        self.dock.updateAntiAlias()
+
     def editVRes(self, value):
         self.model.activeView.v_res = value
         self.dock.updateVRes()
