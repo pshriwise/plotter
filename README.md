@@ -31,9 +31,10 @@ openmc-plotter
 
 ![Example image](images/color-by-mat.png)
 
-Once the viewer has opened, press `?` to view a variety of keyboard shortcuts.
 
 # Controls/Functionality
+
+Once the viewer has opened, a list of shortcuts can be viewed by pressing `?`. A list of other menus and options can be found here.
 
 ## Menu Bar:
 
