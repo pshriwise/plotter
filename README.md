@@ -29,6 +29,8 @@ From a directory containing a working OpenMC model run:
 openmc-plotter
 ```
 
+![Example image](images/color-by-mat.png)
+
 Once the viewer has opened, press `?` to view a variety of keyboard shortcuts.
 
 # Controls/Functionality
