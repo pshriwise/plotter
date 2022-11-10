@@ -1161,9 +1161,14 @@ class MainWindow(QMainWindow):
             'version': self.model.version,
             'currentView': self.model.currentView,
             'statepoint': self.model.statepoint,
-            'mat_xml_hash': mat_xml_hash,
-            'geom_xml_hash': geom_xml_hash
         }
+
+        if os.path.exists('model.xml'):
+            pickle_data['model_xml_hash'] = hash_file('model.xml')
+        else:
+            pickle_data['mat_xml_hash'] = hash_file('materials.xml')
+            pickle_data['geom_xml_hash'] = hash_file('geometry.xml')
+
         with open('plot_settings.pkl', 'wb') as file:
             pickle.dump(pickle_data, file)
 

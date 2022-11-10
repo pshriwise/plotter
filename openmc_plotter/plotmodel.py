@@ -175,13 +175,16 @@ class PlotModel():
                     else:
                         view = data['currentView']
 
-                        # get materials.xml and geometry.xml hashes to
-                        # restore additional settings if possible
-                        mat_xml_hash = hash_file('materials.xml')
-                        geom_xml_hash = hash_file('geometry.xml')
-                        if mat_xml_hash == data['mat_xml_hash'] and \
-                            geom_xml_hash == data['geom_xml_hash']:
-                            restore_domains = True
+                        # check current file hashes against those stored
+                        # in the settings pickle, restore settings if matched
+                        if os.path.exists('model.xml'):
+                            model_hash = hash_file('model.xml')
+                            restore_domains = model_hash == data.get('model_xml_hash')
+                        else:
+                            mat_xml_hash = hash_file('materials.xml')
+                            geom_xml_hash = hash_file('geometry.xml')
+                            restore_domains = mat_xml_hash == data.get('mat_xml_hash') and \
+                                geom_xml_hash == data.get('geom_xml_hash')
 
                         # restore statepoint file
                         try:
