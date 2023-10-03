@@ -10,6 +10,8 @@ from PySide2.QtWidgets import (QApplication, QLabel, QSizePolicy, QMainWindow,
                                QScrollArea, QMessageBox, QAction, QFileDialog,
                                QColorDialog, QInputDialog, QWidget,
                                QGestureEvent)
+from PySide2.QtCore import QLocale
+
 
 import openmc
 import openmc.lib
