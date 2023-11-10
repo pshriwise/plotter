@@ -4,7 +4,7 @@ from setuptools import setup
 
 # Get version information from __init__.py. This is ugly, but more reliable than
 # using an import.
-with open('openmc_plotter/__init__.py', 'r') as f:
+with open('openmc_plotter/version.py', 'r') as f:
     version = f.readlines()[-1].split()[-1].strip("'")
 
 # read the contents of your README file
