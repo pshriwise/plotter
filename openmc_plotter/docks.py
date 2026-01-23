@@ -7,7 +7,8 @@ from PySide6.QtWidgets import (QWidget, QPushButton, QHBoxLayout, QVBoxLayout,
                                QGroupBox, QFormLayout, QLabel, QLineEdit,
                                QComboBox, QSpinBox, QDoubleSpinBox, QSizePolicy,
                                QCheckBox, QDockWidget, QScrollArea, QListWidget,
-                               QListWidgetItem, QTreeWidget, QTreeWidgetItem)
+                               QListWidgetItem, QTreeWidget, QTreeWidgetItem,
+                               QMessageBox)
 import matplotlib.pyplot as plt
 import numpy as np
 import openmc
@@ -506,6 +507,25 @@ class TallyDock(PlotterDock):
         cv = self.model.currentView
         self.selectedTally(cv.selectedTally)
 
+    def validateTally(self, tally):
+        """Ensure that the provided tally is valid for use in the plotter"""
+        spatial_filters = {type(f) for f in tally.filters}.intersection(
+            _SPATIAL_FILTERS)
+        if not spatial_filters:
+            QMessageBox.warning(self, "Invalid Tally",
+                "Tally must have at least one spatial filter to be plotted.")
+            return False
+
+        if tally.contains_filter(openmc.MeshFilter):
+            mesh_filter = tally.find_filter(openmc.MeshFilter)
+            if hasattr(mesh_filter, 'rotation') and mesh_filter.rotation is not None:
+                if mesh_filter.rotation is not None:
+                    QMessageBox.warning(self, "Invalid Tally",
+                        "Tally with rotated MeshFilter cannot be plotted.")
+                    return False
+
+        return True
+
     def selectTally(self, tally_label=None):
         # using active view to populate tally options live
         av = self.model.activeView
@@ -527,6 +547,11 @@ class TallyDock(PlotterDock):
         else:
             # get the tally
             tally = self.model.statepoint.tallies[av.selectedTally]
+
+            if not self.validateTally(tally):
+                av.selectedTally = None
+                self.tallySelector.setCurrentIndex(0)
+                return
 
             # populate filters
             filter_types = {type(f) for f in tally.filters}
