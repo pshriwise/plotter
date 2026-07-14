@@ -26,6 +26,7 @@ ID, NAME, COLOR, COLORLABEL, MASK, HIGHLIGHT = range(6)
 _VOID_REGION = -1
 _NOT_FOUND = -2
 _OVERLAP = -3
+_SURFACE_CROSSING_BASE = -10
 
 _MODEL_PROPERTIES = ('temperature', 'density')
 _PROPERTY_INDICES = {'temperature': 0, 'density': 1}
@@ -130,7 +131,7 @@ class PlotWorker(QObject):
                 filter_cpp = openmc.lib.filters[params["filter_id"]]
 
             # Get geometry and property data from OpenMC library
-            geom_data, property_data = openmc.lib.slice_data(
+            geom_data, property_data = openmc.lib.slice_data_raytrace(
                 origin=params["origin"],
                 width=(params["width"], params["height"]),
                 basis=params["basis"],
@@ -523,7 +524,7 @@ class PlotModel:
                 if filter_id is not None:
                     filter_cpp = openmc.lib.filters[filter_id]
 
-                self.geom_data, self.property_data = openmc.lib.slice_data(
+                self.geom_data, self.property_data = openmc.lib.slice_data_raytrace(
                     origin=view.origin,
                     width=(view.width, view.height),
                     basis=view.basis,
@@ -584,6 +585,10 @@ class PlotModel:
             for id, dom in domain.items():
                 if dom.highlight:
                     image[self.ids == int(id)] = cv.highlightBackground
+
+        # TEST: color surface-crossing pixels black (sentinel in instance channel)
+        crossing_mask = self.instances <= _SURFACE_CROSSING_BASE
+        image[crossing_mask] = (0, 0, 0)
 
         # set model image
         self.image = image
@@ -1277,6 +1282,7 @@ class PlotViewIndependent:
         self.highlightSeed = 1
         self.domainBackground = (50, 50, 50)
         self.overlap_color = (255, 0, 0)
+        self.surface_crossing_color = (0, 0, 0)  # default black
         self.domainAlpha = 1.0
         self.domainVisible = True
         self.outlinesCell = False
@@ -1322,6 +1328,8 @@ class PlotViewIndependent:
                 self.tallyDataMinMaxType = 'full'
         # Remove old attributes if present
         self.__dict__.pop('tallyDataUserMinMax', None)
+        if not hasattr(self, 'surface_crossing_color'):
+            self.surface_crossing_color = (0, 0, 0)
 
     def getDataLimits(self):
         return self.data_minmax

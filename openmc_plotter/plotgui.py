@@ -17,7 +17,8 @@ import numpy.ma as ma
 
 from .plot_colors import rgb_normalize, invert_rgb
 from .plotmodel import DomainDelegate, PlotModel
-from .plotmodel import _NOT_FOUND, _VOID_REGION, _OVERLAP, _MODEL_PROPERTIES
+from .plotmodel import (_NOT_FOUND, _VOID_REGION, _OVERLAP,
+                         _MODEL_PROPERTIES, _SURFACE_CROSSING_BASE)
 from .scientific_spin_box import ScientificDoubleSpinBox
 from .custom_widgets import HorizontalLine
 
