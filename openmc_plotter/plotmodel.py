@@ -7,6 +7,7 @@ from dataclasses import dataclass
 import hashlib
 import itertools
 import pickle
+from time import perf_counter
 from typing import Literal, Tuple, Optional, Dict
 
 from PySide6.QtWidgets import QItemDelegate, QColorDialog, QLineEdit, QMessageBox
@@ -161,14 +162,16 @@ def _surface_crossing_data(instance_data: np.ndarray):
 
 
 class PlotWorker(QObject):
-    finished = Signal(object, object, object)
+    finished = Signal(object, object, object, float)
     error = Signal(str)
 
     @Slot(object)
     def generate_maps(self, work_item: PlotWorkItem):
         try:
+            start = perf_counter()
             geom_data, property_data = _generate_slice_data(work_item.view_params)
-            self.finished.emit(work_item.view_params, geom_data, property_data)
+            elapsed = perf_counter() - start
+            self.finished.emit(work_item.view_params, geom_data, property_data, elapsed)
         except Exception as exc:
             self.error.emit(str(exc))
 
@@ -176,7 +179,7 @@ class PlotWorker(QObject):
 class PlotManager(QObject):
     plot_started = Signal()
     plot_queued = Signal()
-    plot_finished = Signal(object, object, object, object)
+    plot_finished = Signal(object, object, object, object, float)
     plot_error = Signal(str)
     plot_idle = Signal()
     work_requested = Signal(object)
@@ -260,13 +263,13 @@ class PlotManager(QObject):
         work_item = PlotWorkItem(self._in_flight_request.view_params)
         self.work_requested.emit(work_item)
 
-    @Slot(object, object, object)
-    def _on_worker_finished(self, view_params, geom_data, property_data):
+    @Slot(object, object, object, float)
+    def _on_worker_finished(self, view_params, geom_data, property_data, elapsed):
         request = self._in_flight_request
         self._in_flight_request = None
         if request is not None:
             self.plot_finished.emit(request.view_snapshot,
-                                    view_params, geom_data, property_data)
+                                    view_params, geom_data, property_data, elapsed)
         if self._pending_request is not None:
             self._start_next()
         else:
