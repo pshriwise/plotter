@@ -898,7 +898,7 @@ class PlotImage(FigureCanvas):
     def add_surface_crossing_contours(self):
         cv = self.model.currentView
         surface_crossing_map = getattr(self.model, 'surface_crossing_map', None)
-        if not cv.useRaytracedPlots or surface_crossing_map is None:
+        if not cv.useRaytracedPlots or surface_crossing_map is None or not cv.showSurfaceIDs:
             return
 
         data_bounds = self.current_view_data_bounds()
@@ -916,9 +916,6 @@ class PlotImage(FigureCanvas):
                 algorithm='serial',
                 zorder=10,
             )
-
-        if not cv.showSurfaceIDs:
-            return
 
         surface_crossing_ids = sorted(self.model.surface_crossing_ids)
         if not surface_crossing_ids:

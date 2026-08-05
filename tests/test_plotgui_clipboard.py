@@ -5,6 +5,7 @@ import pytest
 from PySide6 import QtGui, QtWidgets
 
 from openmc_plotter.plotgui import PlotImage
+
 class FakeClipboard:
 
     def __init__(self):
@@ -231,5 +232,5 @@ def test_surface_crossing_contours_can_hide_surface_id_labels(qapp, monkeypatch)
         plot.close()
         scroll.close()
 
-    assert len(contour_calls) == 1
+    assert contour_calls == []
     assert text_calls == []
