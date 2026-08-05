@@ -128,10 +128,21 @@ class TabbedDock(QDockWidget):
         self.applyButton.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; }")
         self.applyButton.clicked.connect(self.main_window.applyChanges)
 
+        self.raytraceCheckBox = QCheckBox("Use raytraced plots")
+        self.raytraceCheckBox.setToolTip("Use the raytracing backend when generating slice plots")
+        self.raytraceCheckBox.stateChanged.connect(self.main_window.toggleRaytracedPlots)
+
+        self.surfaceIDsCheckBox = QCheckBox("Show surface IDs")
+        self.surfaceIDsCheckBox.setToolTip("Show surface ID labels on raytraced surface boundaries")
+        self.surfaceIDsCheckBox.stateChanged.connect(self.main_window.toggleSurfaceIDs)
+        self.updatePlotControls()
+
         # Main layout with tabs and apply button
         self.mainLayout = QVBoxLayout()
         self.mainLayout.addWidget(self.tabWidget)
         self.mainLayout.addWidget(HorizontalLine())
+        self.mainLayout.addWidget(self.raytraceCheckBox)
+        self.mainLayout.addWidget(self.surfaceIDsCheckBox)
         self.mainLayout.addWidget(self.applyButton)
 
         # Create container widget
@@ -141,6 +152,16 @@ class TabbedDock(QDockWidget):
 
     def resizeEvent(self, event):
         self.main_window.resizeEvent(event)
+
+    def updatePlotControls(self):
+        was_blocked = self.raytraceCheckBox.blockSignals(True)
+        self.raytraceCheckBox.setChecked(self.model.activeView.useRaytracedPlots)
+        self.raytraceCheckBox.blockSignals(was_blocked)
+
+        was_blocked = self.surfaceIDsCheckBox.blockSignals(True)
+        self.surfaceIDsCheckBox.setChecked(self.model.activeView.showSurfaceIDs)
+        self.surfaceIDsCheckBox.setEnabled(self.model.activeView.useRaytracedPlots)
+        self.surfaceIDsCheckBox.blockSignals(was_blocked)
 
     hideEvent = showEvent = moveEvent = resizeEvent
 

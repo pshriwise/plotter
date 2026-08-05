@@ -116,6 +116,50 @@ class PlotWorkItem:
     view_params: Dict[str, object]
 
 
+def _generate_slice_data(view_params: Dict[str, object]):
+    filter_cpp = None
+    if view_params.get("filter_id") is not None:
+        filter_cpp = openmc.lib.filters[view_params["filter_id"]]
+
+    slice_data = openmc.lib.slice_data_raytrace
+    if not view_params.get("use_raytraced_plots", True):
+        slice_data = openmc.lib.slice_data
+
+    return slice_data(
+        origin=view_params["origin"],
+        width=(view_params["width"], view_params["height"]),
+        basis=view_params["basis"],
+        pixels=(view_params["h_res"], view_params["v_res"]),
+        show_overlaps=view_params["color_overlaps"],
+        level=view_params["level"],
+        filter=filter_cpp,
+    )
+
+
+def _surface_crossing_data(instance_data: np.ndarray):
+    crossing_mask = instance_data <= _SURFACE_CROSSING_BASE
+    surface_crossing_channel = None
+    surface_crossing_map = None
+    surface_crossing_ids = set()
+
+    if np.any(crossing_mask):
+        surface_crossing_channel = np.where(crossing_mask, instance_data, 0)
+        surface_crossing_map = np.ma.masked_where(
+            ~crossing_mask,
+            _SURFACE_CROSSING_BASE - instance_data,
+        )
+        surface_crossing_ids = set(
+            (_SURFACE_CROSSING_BASE - instance_data[crossing_mask]).astype(int)
+        )
+
+    return (
+        crossing_mask,
+        surface_crossing_channel,
+        surface_crossing_map,
+        surface_crossing_ids,
+    )
+
+
 class PlotWorker(QObject):
     finished = Signal(object, object, object)
     error = Signal(str)
@@ -123,24 +167,7 @@ class PlotWorker(QObject):
     @Slot(object)
     def generate_maps(self, work_item: PlotWorkItem):
         try:
-            params = work_item.view_params
-
-            # Determine if we need filter bins for MeshMaterialFilter tally
-            filter_cpp = None
-            if params.get("filter_id") is not None:
-                filter_cpp = openmc.lib.filters[params["filter_id"]]
-
-            # Get geometry and property data from OpenMC library
-            geom_data, property_data = openmc.lib.slice_data_raytrace(
-                origin=params["origin"],
-                width=(params["width"], params["height"]),
-                basis=params["basis"],
-                pixels=(params["h_res"], params["v_res"]),
-                show_overlaps=params["color_overlaps"],
-                level=params["level"],
-                filter=filter_cpp,
-            )
-
+            geom_data, property_data = _generate_slice_data(work_item.view_params)
             self.finished.emit(work_item.view_params, geom_data, property_data)
         except Exception as exc:
             self.error.emit(str(exc))
@@ -300,6 +327,14 @@ class PlotModel:
         Whether to plot source sites (default True)
     sourceSites :  Source sites to plot
         Set of source locations to plot
+    surface_crossing_channel : NumPy int array or None
+        Raytraced surface-crossing sentinel values isolated from the instance
+        channel of geom_data; non-crossing pixels are zeroed out
+    surface_crossing_map : NumPy masked array or None
+        Per-pixel decoded surface IDs for raytraced crossings, with
+        non-crossing pixels masked out
+    surface_crossing_ids : set[int]
+        Surface IDs decoded from the isolated surface-crossing channel
     defaultView : PlotView
         Default settings for given geometry
     currentView : PlotView
@@ -324,6 +359,9 @@ class PlotModel:
         self.geom_data = None
         self.property_data = None
         self.map_view_params = None
+        self.surface_crossing_channel = None
+        self.surface_crossing_map = None
+        self.surface_crossing_ids = set()
 
         # Map to be populated by overlap functions
         self.overlap_info = None
@@ -486,6 +524,7 @@ class PlotModel:
             "basis": str(vp.basis),
             "level": int(vp.level),
             "color_overlaps": bool(vp.color_overlaps),
+            "use_raytraced_plots": bool(view.useRaytracedPlots),
             "filter_id": self.get_active_mesh_material_filter_id(view),
         }
 
@@ -518,20 +557,8 @@ class PlotModel:
         if geom_data is None or property_data is None:
             if (self.currentView.view_params != view.view_params) or \
                 (self.geom_data is None) or (self.property_data is None):
-                # Determine if we need filter bins for MeshMaterialFilter tally
-                filter_cpp = None
-                filter_id = self.get_active_mesh_material_filter_id(view)
-                if filter_id is not None:
-                    filter_cpp = openmc.lib.filters[filter_id]
-
-                self.geom_data, self.property_data = openmc.lib.slice_data_raytrace(
-                    origin=view.origin,
-                    width=(view.width, view.height),
-                    basis=view.basis,
-                    pixels=(view.h_res, view.v_res),
-                    show_overlaps=view.color_overlaps,
-                    level=view.level,
-                    filter=filter_cpp,
+                self.geom_data, self.property_data = _generate_slice_data(
+                    self.view_params_payload(view)
                 )
             self.map_view_params = self.view_params_payload(view)
 
@@ -586,8 +613,17 @@ class PlotModel:
                 if dom.highlight:
                     image[self.ids == int(id)] = cv.highlightBackground
 
-        # TEST: color surface-crossing pixels black (sentinel in instance channel)
-        crossing_mask = self.instances <= _SURFACE_CROSSING_BASE
+        self.surface_crossing_channel = None
+        self.surface_crossing_map = None
+        self.surface_crossing_ids = set()
+        crossing_mask = np.zeros(self.instances.shape, dtype=bool)
+        if view.useRaytracedPlots:
+            (crossing_mask,
+             self.surface_crossing_channel,
+             self.surface_crossing_map,
+             self.surface_crossing_ids) = _surface_crossing_data(self.instances)
+
+        # Keep sampled crossing pixels visible in the raster image itself.
         image[crossing_mask] = (0, 0, 0)
 
         # set model image
@@ -1267,6 +1303,10 @@ class PlotViewIndependent:
         Indicates whether or not tallies are displayed as contours
     tallyContourLevels : str
         Number of contours levels or explicit level values
+    useRaytracedPlots : bool
+        Whether geometry slices are generated with the raytraced backend
+    showSurfaceIDs : bool
+        Whether surface ID labels are drawn for raytraced surface crossings
     """
 
     def __init__(self):
@@ -1287,6 +1327,8 @@ class PlotViewIndependent:
         self.domainVisible = True
         self.outlinesCell = False
         self.outlinesMat = False
+        self.useRaytracedPlots = True
+        self.showSurfaceIDs = True
         self.colormaps = {'temperature': 'Oranges', 'density': 'Greys'}
         # set defaults for color dialog
         self.data_minmax = {prop: (0.0, 0.0) for prop in _MODEL_PROPERTIES}
@@ -1330,6 +1372,10 @@ class PlotViewIndependent:
         self.__dict__.pop('tallyDataUserMinMax', None)
         if not hasattr(self, 'surface_crossing_color'):
             self.surface_crossing_color = (0, 0, 0)
+        if not hasattr(self, 'useRaytracedPlots'):
+            self.useRaytracedPlots = True
+        if not hasattr(self, 'showSurfaceIDs'):
+            self.showSurfaceIDs = True
 
     def getDataLimits(self):
         return self.data_minmax

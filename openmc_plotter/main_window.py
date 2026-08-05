@@ -129,6 +129,7 @@ class MainWindow(QMainWindow):
         # Load Plot
         self.geometryPanel.update()
         self.tallyPanel.update()
+        self.dock.updatePlotControls()
         self.colorDialog.updateDialogValues()
 
         QtCore.QTimer.singleShot(0, self.requestPlotUpdate)
@@ -568,6 +569,7 @@ class MainWindow(QMainWindow):
             if not hasattr(self.model.activeView, 'outlinesMat'):
                 self.model.activeView.outlinesMat = False
             self.geometryPanel.update()
+            self.dock.updatePlotControls()
             self.colorDialog.updateDialogValues()
             self.applyChanges()
             message = '{} loaded'.format(filename)
@@ -684,6 +686,7 @@ class MainWindow(QMainWindow):
             return
         self.model.undo()
         self.geometryPanel.update()
+        self.dock.updatePlotControls()
         self.colorDialog.updateDialogValues()
         self.requestPlotUpdate()
 
@@ -696,6 +699,7 @@ class MainWindow(QMainWindow):
             return
         self.model.redo()
         self.geometryPanel.update()
+        self.dock.updatePlotControls()
         self.colorDialog.updateDialogValues()
         self.requestPlotUpdate()
 
@@ -708,6 +712,7 @@ class MainWindow(QMainWindow):
             self.model.storeCurrent()
             self.model.activeView.adopt_view_params(self.model.defaultView)
             self.geometryPanel.update()
+            self.dock.updatePlotControls()
             self.colorDialog.updateDialogValues()
             self.requestPlotUpdate()
 
@@ -741,6 +746,14 @@ class MainWindow(QMainWindow):
         self.colorDialog.updateOverlap()
         if apply:
             self.applyChanges()
+
+    def toggleRaytracedPlots(self, state):
+        self.model.activeView.useRaytracedPlots = bool(state)
+        self.dock.updatePlotControls()
+
+    def toggleSurfaceIDs(self, state):
+        self.model.activeView.showSurfaceIDs = bool(state)
+        self.dock.updatePlotControls()
 
     def editColorMap(self, colormap_name, property_type, apply=False):
         self.model.activeView.colormaps[property_type] = colormap_name
@@ -1156,6 +1169,7 @@ class MainWindow(QMainWindow):
     def showCurrentView(self):
         self.updateScale()
         self.updateRelativeBases()
+        self.dock.updatePlotControls()
         self.plotIm.updatePixmap()
 
         if self.model.previousViews:

@@ -809,6 +809,8 @@ class PlotImage(FigureCanvas):
         for mesh_id in cv.mesh_annotations:
             self.annotate_mesh(mesh_id)
 
+        self.add_surface_crossing_contours()
+
         # always make sure the data bounds are set correctly
         self.ax.set_xbound(data_bounds[0], data_bounds[1])
         self.ax.set_ybound(data_bounds[2], data_bounds[3])
@@ -892,6 +894,162 @@ class PlotImage(FigureCanvas):
                                 levels=levels,
                                 extent=data_bounds,
                                 algorithm='serial')
+
+    def add_surface_crossing_contours(self):
+        cv = self.model.currentView
+        surface_crossing_map = getattr(self.model, 'surface_crossing_map', None)
+        if not cv.useRaytracedPlots or surface_crossing_map is None:
+            return
+
+        data_bounds = self.current_view_data_bounds()
+        contour_color = rgb_normalize(cv.surface_crossing_color)
+        if not cv.outlinesCell:
+            levels = np.unique(self.model.cell_ids)
+            self.ax.contour(
+                self.model.cell_ids,
+                origin='upper',
+                colors=[contour_color],
+                linestyles='solid',
+                linewidths=2.5,
+                levels=levels,
+                extent=data_bounds,
+                algorithm='serial',
+                zorder=10,
+            )
+
+        if not cv.showSurfaceIDs:
+            return
+
+        surface_crossing_ids = sorted(self.model.surface_crossing_ids)
+        if not surface_crossing_ids:
+            return
+
+        filled_surface_map = surface_crossing_map.filled(-1)
+
+        for surface_id in surface_crossing_ids:
+            points = np.argwhere(filled_surface_map == surface_id)
+            if len(points) == 0:
+                continue
+
+            tracks = self._surface_crossing_tracks(points)
+            if not tracks:
+                continue
+
+            label_track = max(tracks, key=len)
+
+            if len(label_track) < 2:
+                continue
+
+            sampled_label_track = self._surface_crossing_interpolate(label_track)
+            x_coords, y_coords = self._surface_crossing_xy(
+                sampled_label_track,
+                data_bounds,
+                filled_surface_map.shape,
+            )
+            if len(x_coords) < 2:
+                continue
+
+            label_x, label_y, label_angle = self._surface_crossing_label_position(
+                x_coords,
+                y_coords,
+            )
+            self.ax.text(
+                label_x,
+                label_y,
+                f"Surface {surface_id}",
+                color=contour_color,
+                rotation=label_angle,
+                rotation_mode='anchor',
+                ha='center',
+                va='center',
+                zorder=11,
+                bbox={'facecolor': 'white', 'edgecolor': 'none', 'alpha': 0.5, 'pad': 0.4},
+            )
+
+    @staticmethod
+    def _surface_crossing_tracks(points, max_col_gap=3):
+        row_groups = {}
+        for row, col in points:
+            row_groups.setdefault(int(row), []).append(float(col))
+
+        tracks = []
+        active_tracks = []
+        next_track_id = 0
+
+        for row in sorted(row_groups):
+            cols = sorted(set(row_groups[row]))
+            available_tracks = [track for track in active_tracks if row - track['last_row'] <= 1]
+            assigned_tracks = set()
+            next_active_tracks = []
+
+            for col in cols:
+                best_track = None
+                best_gap = None
+                for track in available_tracks:
+                    if track['id'] in assigned_tracks:
+                        continue
+                    col_gap = abs(col - track['last_col'])
+                    if col_gap > max_col_gap:
+                        continue
+                    if best_gap is None or col_gap < best_gap:
+                        best_track = track
+                        best_gap = col_gap
+
+                if best_track is None:
+                    best_track = {
+                        'id': next_track_id,
+                        'points': [],
+                        'last_row': row,
+                        'last_col': col,
+                    }
+                    next_track_id += 1
+                    tracks.append(best_track)
+
+                best_track['points'].append((row, col))
+                best_track['last_row'] = row
+                best_track['last_col'] = col
+                assigned_tracks.add(best_track['id'])
+                next_active_tracks.append(best_track)
+
+            active_tracks = next_active_tracks
+
+        return [np.asarray(track['points'], dtype=float) for track in tracks if track['points']]
+
+    @staticmethod
+    def _surface_crossing_interpolate(track):
+        rows = track[:, 0]
+        cols = track[:, 1]
+        sampled_rows = np.arange(int(rows[0]), int(rows[-1]) + 1, dtype=float)
+        sampled_cols = np.interp(sampled_rows, rows, cols)
+        return np.column_stack((sampled_rows, sampled_cols))
+
+    @staticmethod
+    def _surface_crossing_xy(points, data_bounds, shape):
+        x_min, x_max, y_min, y_max = data_bounds
+        v_res, h_res = shape
+        x_step = (x_max - x_min) / h_res
+        y_step = (y_max - y_min) / v_res
+
+        x_coords = x_min + (points[:, 1] + 0.5) * x_step
+        y_coords = y_max - (points[:, 0] + 0.5) * y_step
+        return x_coords, y_coords
+
+    def _surface_crossing_label_position(self, x_coords, y_coords):
+        mid_idx = len(x_coords) // 2
+        if len(x_coords) == 1:
+            return x_coords[0], y_coords[0], 0.0
+
+        idx0 = max(0, mid_idx - 1)
+        idx1 = min(len(x_coords) - 1, mid_idx + 1)
+        p0 = self.ax.transData.transform((x_coords[idx0], y_coords[idx0]))
+        p1 = self.ax.transData.transform((x_coords[idx1], y_coords[idx1]))
+        angle = np.degrees(np.arctan2(p1[1] - p0[1], p1[0] - p0[0]))
+        if angle > 90.0:
+            angle -= 180.0
+        elif angle < -90.0:
+            angle += 180.0
+
+        return x_coords[mid_idx], y_coords[mid_idx], angle
 
 
     @staticmethod

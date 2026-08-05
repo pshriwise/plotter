@@ -21,6 +21,21 @@ def test_window(tmpdir, qtbot):
     mw.loadGui()
 
     try:
+        assert mw.dock.raytraceCheckBox.isChecked()
+        assert mw.dock.surfaceIDsCheckBox.isChecked()
+        assert mw.dock.surfaceIDsCheckBox.isEnabled()
+        assert mw.model.activeView.useRaytracedPlots is True
+        assert mw.model.activeView.showSurfaceIDs is True
+        mw.dock.raytraceCheckBox.setChecked(False)
+        assert mw.model.activeView.useRaytracedPlots is False
+        assert not mw.dock.surfaceIDsCheckBox.isEnabled()
+        mw.dock.raytraceCheckBox.setChecked(True)
+        assert mw.model.activeView.useRaytracedPlots is True
+        assert mw.dock.surfaceIDsCheckBox.isEnabled()
+        mw.dock.surfaceIDsCheckBox.setChecked(False)
+        assert mw.model.activeView.showSurfaceIDs is False
+        mw.dock.surfaceIDsCheckBox.setChecked(True)
+        assert mw.model.activeView.showSurfaceIDs is True
         assert mw.waitForPlotIdle(60000)
         mw.saveImage(tmpdir / 'test.png')
 
